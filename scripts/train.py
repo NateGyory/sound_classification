@@ -1,35 +1,27 @@
 # ----------------------------
 # Prepare training data from Metadata file
 # ----------------------------
-import pandas as pd
-from pathlib import Path
+import os
 
 import math, random
 import torch
 import torchaudio
 from torchaudio import transforms
 
+# TODO remove random_split
 from torch.utils.data import DataLoader, Dataset, random_split
 
 import torch.nn.functional as F
 from torch.nn import init
 from torch import nn
 
-download_path = Path.cwd()/'UrbanSound8K'
+dataset_path = '/home/nate/Development/sound_classification/dataset'
 
-# Read metadata file
-metadata_file = download_path/'metadata'/'UrbanSound8K.csv'
-df = pd.read_csv(metadata_file)
-df.head()
+drill_list = [(dataset_path + '/Drill/' + x, 0) for x in os.listdir(dataset_path + '/Drill')]
+alarm_list = [(dataset_path + '/Alarm/' + x, 1) for x in os.listdir(dataset_path + '/Alarm')]
+pig_list = [(dataset_path + '/PIG/' + x, 2) for x in os.listdir(dataset_path + '/PIG')]
 
-# Construct file path by concatenating fold and file name
-df['relative_path'] = '/fold' + df['fold'].astype(str) + '/' + df['slice_file_name'].astype(str)
-
-# Take relevant columns
-df = df[['relative_path', 'classID']]
-df.head()
-
-print("DF loaded")
+sounds_list = drill_list + alarm_list + pig_list
 
 class AudioUtil():
   # ----------------------------
@@ -159,11 +151,10 @@ class AudioUtil():
 # Sound Dataset
 # ----------------------------
 class SoundDS(Dataset):
-  def __init__(self, df, data_path):
-    self.df = df
-    self.data_path = str(data_path)
+  def __init__(self, sounds_list):
+    self.sounds_list = sounds_list
     self.duration = 4000
-    self.sr = 44100
+    self.sr = 48000
     self.channel = 2
     self.shift_pct = 0.4
 
@@ -171,7 +162,7 @@ class SoundDS(Dataset):
   # Number of items in dataset
   # ----------------------------
   def __len__(self):
-    return len(self.df)
+    return len(self.sounds_list)
 
   # ----------------------------
   # Get i'th item in dataset
@@ -179,9 +170,9 @@ class SoundDS(Dataset):
   def __getitem__(self, idx):
     # Absolute file path of the audio file - concatenate the audio directory with
     # the relative path
-    audio_file = self.data_path + self.df.loc[idx, 'relative_path']
+    audio_file = self.sounds_list[idx][0]
     # Get the Class ID
-    class_id = self.df.loc[idx, 'classID']
+    class_id = self.sounds_list[idx][1]
 
     aud = AudioUtil.open(audio_file)
     # Some sounds have a higher sample rate, or fewer channels compared to the
@@ -199,19 +190,19 @@ class SoundDS(Dataset):
 
     return aug_sgram, class_id
 
-myds = SoundDS(df, "./UrbanSound8K/audio")
+train_ds = SoundDS(sounds_list)
 
 print("Data Loader Created")
 
 # Random split of 80:20 between training and validation
-num_items = len(myds)
-num_train = round(num_items * 0.8)
-num_val = num_items - num_train
-train_ds, val_ds = random_split(myds, [num_train, num_val])
+#num_items = len(myds)
+#num_train = round(num_items * 0.8)
+#num_val = num_items - num_train
+#train_ds, val_ds = random_split(myds, [num_train, num_val])
 
 # Create training and validation data loaders
 train_dl = torch.utils.data.DataLoader(train_ds, batch_size=16, shuffle=True)
-val_dl = torch.utils.data.DataLoader(val_ds, batch_size=16, shuffle=False)
+#val_dl = torch.utils.data.DataLoader(val_ds, batch_size=16, shuffle=False)
 
 print("Train + Val Split Made")
 
@@ -352,36 +343,4 @@ num_epochs=50   # Just for demo, adjust this higher.
 training(myModel, train_dl, num_epochs)
 
 # Save model
-torch.save(myModel.state_dict(), './model/model.pth')
-
-# ----------------------------
-# Inference
-# ----------------------------
-def inference (model, val_dl):
-  correct_prediction = 0
-  total_prediction = 0
-
-  # Disable gradient updates
-  with torch.no_grad():
-    for data in val_dl:
-      # Get the input features and target labels, and put them on the GPU
-      inputs, labels = data[0].to(device), data[1].to(device)
-
-      # Normalize the inputs
-      inputs_m, inputs_s = inputs.mean(), inputs.std()
-      inputs = (inputs - inputs_m) / inputs_s
-
-      # Get predictions
-      outputs = model(inputs)
-
-      # Get the predicted class with the highest score
-      _, prediction = torch.max(outputs,1)
-      # Count of predictions that matched the target label
-      correct_prediction += (prediction == labels).sum().item()
-      total_prediction += prediction.shape[0]
-
-  acc = correct_prediction/total_prediction
-  print(f'Accuracy: {acc:.2f}, Total items: {total_prediction}')
-
-# Run inference on trained model with the validation set
-inference(myModel, val_dl)
+torch.save(myModel.state_dict(), '../model/model.pth')
