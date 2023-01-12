@@ -176,7 +176,7 @@ class SoundDS(Dataset):
     sgram = AudioUtil.spectro_gram(shift_aud, n_mels=64, n_fft=1024, hop_len=None)
     aug_sgram = AudioUtil.spectro_augment(sgram, max_mask_pct=0.1, n_freq_masks=2, n_time_masks=2)
 
-    return aug_sgram, class_id
+    return aug_sgram, class_id, audio_file
 
 def test(model, test_dl):
   correct_prediction = 0
@@ -187,6 +187,7 @@ def test(model, test_dl):
     for data in test_dl:
       # Get the input features and target labels, and put them on the GPU
       inputs, labels = data[0].to(device), data[1].to(device)
+      audio_files = data[2]
 
       # Normalize the inputs
       inputs_m, inputs_s = inputs.mean(), inputs.std()
@@ -197,6 +198,11 @@ def test(model, test_dl):
 
       # Get the predicted class with the highest score
       _, prediction = torch.max(outputs,1)
+      for i, val in enumerate(audio_files):
+          print("file: %s class_id: %i prediction: %i" %(val, labels[i], prediction[i]))
+          if (labels[i] != prediction[i]):
+              print("!!!!! -- INCORRECT PREDICTION")
+
       # Count of predictions that matched the target label
       correct_prediction += (prediction == labels).sum().item()
       total_prediction += prediction.shape[0]
@@ -249,7 +255,7 @@ class AudioClassifier (nn.Module):
 
         # Linear Classifier
         self.ap = nn.AdaptiveAvgPool2d(output_size=1)
-        self.lin = nn.Linear(in_features=64, out_features=10)
+        self.lin = nn.Linear(in_features=64, out_features=3)
 
         # Wrap the Convolutional Blocks
         self.conv = nn.Sequential(*conv_layers)
