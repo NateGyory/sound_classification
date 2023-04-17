@@ -1,5 +1,6 @@
 # sound_classification
-CNN for sound classification
+CNN for anomaly sound classification at a gas plant.
 
-## Data
-In order test the model download the data set from: https://urbansounddataset.weebly.com/urbansound8k.html to a folder called UrbanSound8K in the root dir of the project.
+## Demo
+
+https://user-images.githubusercontent.com/45575958/232602137-1dfb49f1-b4fa-40ad-b002-184f8bfb79c2.mp4
